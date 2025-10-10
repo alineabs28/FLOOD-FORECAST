@@ -2,25 +2,25 @@
   "version": 2,
   "builds": [
     {
-      "src": "FLOOD/flood.py",
+      "src": "flood.py",
       "use": "@vercel/python"
     },
     {
-      "src": "FLOOD/flood_map.html",
+      "src": "flood_map.html",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/flood/(.*)",
-      "dest": "/FLOOD/$1"
+      "dest": "/$1"
     },
     {
       "src": "/api/flood",
-      "dest": "/FLOOD/flood.py"
+      "dest": "/flood.py"
     }
   ],
   "env": {
-    "GOOGLE_FLOOD_API_KEY": "@google-flood-api-key"
+    "GOOGLE_FLOOD_API_KEY": "AIzaSyCXQcRSybyofa3-dCqThrlPfXcUJjuTFZE"
   }
 }
