@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/",
+      "dest": "/flood_map.html"
+    },
+    {
       "src": "/flood/(.*)",
       "dest": "/$1"
     },
