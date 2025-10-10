@@ -19,8 +19,5 @@
       "src": "/api/flood",
       "dest": "/flood.py"
     }
-  ],
-  "env": {
-    "GOOGLE_FLOOD_API_KEY": "AIzaSyCXQcRSybyofa3-dCqThrlPfXcUJjuTFZE"
-  }
+  ]
 }
