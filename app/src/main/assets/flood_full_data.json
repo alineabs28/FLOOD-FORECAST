@@ -1,0 +1,62 @@
+[
+  {
+    "gaugeId": "sample-001",
+    "siteName": "Sample River Gauge",
+    "river": "Sample River",
+    "lat": 33.895,
+    "lon": 35.501,
+    "source": "Sample Data",
+    "forecasts": [
+      {
+        "forecastRanges": [
+          {
+            "forecastEndTime": "2026-09-20T00:00:00Z",
+            "value": 1.5
+          },
+          {
+            "forecastEndTime": "2026-09-21T00:00:00Z",
+            "value": 2.5
+          },
+          {
+            "forecastEndTime": "2026-09-22T00:00:00Z",
+            "value": 4.0
+          },
+          {
+            "forecastEndTime": "2026-09-23T00:00:00Z",
+            "value": 6.5
+          }
+        ]
+      }
+    ],
+    "predicted_next_7days": [
+      {
+        "ds": "2026-09-24T00:00:00Z",
+        "yhat": 6.8
+      },
+      {
+        "ds": "2026-09-25T00:00:00Z",
+        "yhat": 7.2
+      },
+      {
+        "ds": "2026-09-26T00:00:00Z",
+        "yhat": 7.5
+      },
+      {
+        "ds": "2026-09-27T00:00:00Z",
+        "yhat": 7.0
+      },
+      {
+        "ds": "2026-09-28T00:00:00Z",
+        "yhat": 6.5
+      },
+      {
+        "ds": "2026-09-29T00:00:00Z",
+        "yhat": 6.0
+      },
+      {
+        "ds": "2026-09-30T00:00:00Z",
+        "yhat": 5.5
+      }
+    ]
+  }
+]
