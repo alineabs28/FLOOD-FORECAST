@@ -17,11 +17,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-35,build-tools;35.0.0'
-
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
@@ -47,28 +42,6 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload AAB for Google Play
-        uses: actions/upload-artifact@v4
-        with:
-          name: FLOOD-FORECAST-AAB
-          path: app/build/outputs/bundle/release/app-release.aab "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-
-      - name: Build APK and AAB
-        run: |
-          gradle assembleDebug
-          gradle bundleRelease
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: FLOOD-FORECAST-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: FLOOD-FORECAST-AAB
