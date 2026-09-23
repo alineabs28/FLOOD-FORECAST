@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lymis | Flood Watch</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+  <style>
+    /* ---------------- NEW THEME: LIGHT & BLUE ---------------- */
+    :root {
+      --bg-light: #ffffff;
+      --bg-panel: #f6f8fa; /* Light grey for panel background */
+      --border-color: #d8dee4;
+      --text-primary: #1f2328;
+      --text-secondary: #656d76;
+      --accent-blue: #0969da;
+      --accent-purple: #8250df;
+
+      /* Data Visualization Palette */
+      --color-low: #0969da;      /* Blue */
+      --color-moderate: #d29922; /* Yellow */
+      --color-severe: #f0883e;   /* Orange */
+      --color-extreme: #f85149;  /* Red */
+      --color-extreme-glow: rgba(248, 81, 73, 0.5);
+    }
+
+    /* ---------------- CORE STYLES ---------------- */
+    html, body {
+      height: 100%; margin: 0;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      background-color: var(--bg-light);
+      color: var(--text-primary);
+    }
+
+    #map {
+      height: 100vh; width: 100%;
+      background-color: var(--bg-light);
+      opacity: 0;
+      transition: opacity 0.8s ease-in;
+    }
+    .leaflet-control-zoom { margin-bottom: 55px; }
+    
+    /* --- NEW: Marker Hover Effect --- */
+    .leaflet-interactive:hover {
+        stroke-width: 2.5;
+        stroke: var(--text-primary);
+    }
+
+    /* ---------------- SPLASH SCREEN ---------------- */
+    #splash-screen {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: var(--bg-panel);
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        z-index: 10000;
+        transition: opacity 0.8s ease-out, visibility 0.8s;
+        visibility: visible;
+        opacity: 1;
+    }
+    #splash-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+    }
+    #splash-screen .logo {
+        font-size: 8vw;
+        font-weight: 800;
+        letter-spacing: -3px;
+        animation: shine 4s infinite;
+        background: linear-gradient(90deg, #0969da, #1f2328, #8250df, #0969da);
+        background-size: 300%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    @keyframes shine {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    #splash-screen p {
+        margin-top: 20px;
+        font-size: 1.2em;
+        color: var(--text-secondary);
+        max-width: 600px;
+        text-align: center;
+        line-height: 1.6;
+    }
+    .spinner {
+        width: 40px; height: 40px; margin-top: 40px;
+        border: 4px solid var(--border-color);
+        border-top: 4px solid var(--accent-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* ---------------- UI CONTROLS ---------------- */
+    .ui-control {
+      position: absolute;
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 1001;
+    }
+    .header-bar {
+      top: 15px; left: 15px; padding: 10px 20px;
+      display: flex; align-items: center; gap: 15px;
+    }
+    .header-bar h1 {
+        margin: 0; font-size: 22px; font-weight: 700;
+        color: var(--text-primary);
+    }
+    .header-bar .subtitle {
+        font-size: 12px; color: var(--text-secondary);
+        border-left: 1px solid var(--border-color); padding-left: 15px;
+    }
+    .filter-bar {
+      top: 15px; left: 50%; transform: translateX(-50%);
+      padding: 10px 15px; display: flex; align-items: center; gap: 15px;
+    }
+    #date-select {
+        background-color: var(--bg-light); border: 1px solid var(--border-color);
+        color: var(--text-primary); padding: 8px 12px; border-radius: 6px;
+        font-family: 'Inter', sans-serif; cursor: pointer;
+    }
+    .map-legend { bottom: 25px; left: 15px; padding: 15px; width: 240px; }
+    .map-legend h4, .stats-panel h4 { margin: 0 0 15px 0; font-weight: 600; font-size: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+    .legend-item { display: flex; align-items: center; padding: 8px; margin-bottom: 5px; border-radius: 6px; cursor: pointer; transition: background-color 0.2s; }
+    .legend-item:hover { background-color: rgba(132, 141, 151, 0.1); }
+    .legend-item.inactive { opacity: 0.4; }
+    .legend-circle { border-radius: 50%; margin-right: 12px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.4); }
+    .legend-low { background-color: var(--color-low); width: 12px; height: 12px; }
+    .legend-moderate { background-color: var(--color-moderate); width: 16px; height: 16px; }
+    .legend-severe { background-color: var(--color-severe); width: 20px; height: 20px; }
+    .legend-extreme { background-color: var(--color-extreme); width: 24px; height: 24px; }
+    
+    .stats-panel { top: 15px; right: 15px; padding: 15px 20px; width: 280px; }
+    .stat-item { padding-bottom: 15px; }
+    .stat-item .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+    .stat-item .value { font-size: 24px; font-weight: 700; line-height: 1; }
+    
+    .info-button {
+        position: absolute; bottom: 95px; right: 15px; z-index: 1001;
+        width: 45px; height: 45px; border-radius: 50%;
+        background: var(--bg-light); border: 1px solid var(--border-color);
+        color: var(--text-secondary); font-size: 18px;
+        display: flex; justify-content: center; align-items: center;
+        cursor: pointer; transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .info-button:hover { color: var(--text-primary); border-color: var(--accent-blue); }
+    
+    /* --- NEW: Button Click Effect --- */
+    .info-button:active, #donate-float-btn:active, .panel-close-btn:active {
+        transform: scale(0.95);
+        transition: transform 0.1s;
+    }
+
+    /* ---------------- DETAILS PANEL (NEW DESIGN) ---------------- */
+    #details-panel {
+        position: fixed; top: 0; right: 0; width: 40vw; max-width: 550px; min-width: 450px;
+        height: 100vh; background: var(--bg-panel); /* Light grey background */
+        box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+        transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        z-index: 2000; display: flex; flex-direction: column;
+    }
+    #details-panel.visible { transform: translateX(0); }
+    
+    .panel-header {
+        padding: 20px 25px; flex-shrink: 0; background-color: var(--accent-blue); color: white;
+    }
+    .panel-header h2 { margin: 0 0 4px 0; font-size: 22px; font-weight: 700; }
+    .panel-header p { margin: 0; font-size: 15px; opacity: 0.8; }
+    
+    .panel-close-btn {
+        position: absolute; top: 15px; right: 15px; width: 35px; height: 35px;
+        border-radius: 50%; background: rgba(255,255,255,0.15); border: none; color: white;
+        font-size: 20px; cursor: pointer; transition: all 0.2s ease;
+    }
+    .panel-close-btn:hover { background: rgba(255,255,255,0.3); transform: rotate(90deg) scale(1.05); }
+    
+    .panel-content { padding: 25px; overflow-y: auto; }
+    .panel-content::-webkit-scrollbar { width: 8px; }
+    .panel-content::-webkit-scrollbar-track { background: transparent; }
+    .panel-content::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 10px; }
+    .panel-content::-webkit-scrollbar-thumb:hover { background-color: var(--text-secondary); }
+    
+    .content-section { margin-bottom: 25px; }
+    .content-section h3 { margin: 0 0 15px 0; font-size: 16px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; }
+    .content-section h3 i { margin-right: 12px; font-size: 18px; color: var(--accent-blue); }
+    
+    #details-panel.visible .content-section {
+        opacity: 0; transform: translateY(15px);
+        animation: panelFadeIn 0.5s ease-out forwards;
+    }
+    #details-panel.visible .content-section:nth-child(2) { animation-delay: 0.1s; }
+    #details-panel.visible .content-section:nth-child(3) { animation-delay: 0.2s; }
+    @keyframes panelFadeIn { to { opacity: 1; transform: translateY(0); } }
+    
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .info-item {
+        background: var(--bg-light); padding: 15px; border-radius: 8px;
+        border: 1px solid var(--border-color);
+        border-left: 4px solid var(--accent-blue); /* Default border color */
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .info-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .info-item .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; }
+    .info-item .label i { margin-right: 8px; width: 16px; text-align: center; }
+    .info-item .value { font-size: 18px; font-weight: 600; word-break: break-all; }
+    #panel-severity { font-weight: 700; }
+
+    .chart-container {
+        position: relative; height: 260px; padding: 15px;
+        background-color: var(--bg-light); border: 1px solid var(--border-color);
+        border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    /* ---------------- MODAL STYLES ---------------- */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(101, 109, 118, 0.8);
+        z-index: 3000;
+        display: flex; justify-content: center; align-items: center;
+        opacity: 0; visibility: hidden; transition: all 0.3s;
+    }
+    .modal-overlay.visible { opacity: 1; visibility: visible; }
+    .modal-content {
+        background: var(--bg-panel); border: 1px solid var(--border-color);
+        border-radius: 12px; width: 90%; max-width: 800px;
+        max-height: 80vh; display: flex; flex-direction: column;
+        transform: scale(0.95); transition: transform 0.3s;
+    }
+    .modal-overlay.visible .modal-content { transform: scale(1); }
+    .modal-header { padding: 20px; border-bottom: 1px solid var(--border-color); }
+    .modal-header h2 { margin: 0; font-size: 20px; }
+    .modal-body { padding: 20px; overflow-y: auto; line-height: 1.7; }
+    .modal-body h3 { color: var(--accent-blue); margin-top: 25px; }
+    .modal-body p { color: var(--text-secondary); }
+    .modal-body code { background: var(--bg-light); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    .formula-box { background: var(--bg-light); padding: 20px; border-radius: 8px; margin-top: 15px; border: 1px solid var(--border-color); text-align: center; }
+    .formula-box .formula { font-size: 1.5em; color: var(--text-primary); margin-bottom: 15px; }
+    .formula-box .components { font-size: 0.9em; text-align: left; max-width: 400px; margin: 0 auto; }
+    
+    /* Marker Animation */
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--color-extreme-glow); } 70% { box-shadow: 0 0 0 15px rgba(248, 81, 73, 0); } 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0); } }
+    .pulsing-marker { animation: pulse 2s infinite; }
+
+    /* Donate Button Animation */
+    @keyframes heartbeat { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    #donate-float-btn {
+      position: absolute; top: 70px; right: 15px; z-index: 1002;
+      padding: 10px 20px; background-color: var(--accent-purple); color: white;
+      border: none; border-radius: 30px; font-family: 'Inter', sans-serif;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      transition: all 0.3s ease; animation: heartbeat 1.5s infinite;
+    }
+    #donate-float-btn:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+    #donate-float-btn i { margin-right: 8px; animation: heartbeat 1.5s infinite; }
+  </style>
+</head>
+<body>
+
+  <div id="splash-screen">
+    <div class="logo">Lymis</div>
+    <p>Providing accurate, near-real-time flood intelligence globally to prepare, respond, and mitigate disasters. <br> A World Disaster Center Initiative.</p>
+    <div class="spinner"></div>
+  </div>
+  
+  <div id="map"></div>
+
+  <div class="header-bar ui-control">
+    <h1>Lymis</h1>
+    <div class="subtitle">World Disaster Center</div>
+  </div>
+
+  <div class="filter-bar ui-control">
+    <label for="date-select"><i class="fa-solid fa-calendar-days"></i></label>
+    <select id="date-select"></select>
+  </div>
+  
+  <div class="stats-panel ui-control">
+    <h4><i class="fa-solid fa-chart-simple"></i> Live Dashboard</h4>
+    <div class="stat-item">
+        <div class="label">Gauges Displayed</div>
+        <div class="value" id="stat-active-gauges" data-value="0">0</div>
+    </div>
+    <div class="stat-item">
+        <div class="label">Highest Forecast Value</div>
+        <div class="value" id="stat-highest-value" data-value="0">0.00</div>
+    </div>
+  </div>
+
+  <div class="map-legend ui-control">
+    <h4><i class="fa-solid fa-layer-group"></i> Flood Severity (Filter)</h4>
+    <div class="legend-item" data-severity="extreme"><div class="legend-circle legend-extreme"></div> Extreme Danger</div>
+    <div class="legend-item" data-severity="severe"><div class="legend-circle legend-severe"></div> Severe Danger</div>
+    <div class="legend-item" data-severity="moderate"><div class="legend-circle legend-moderate"></div> Moderate Danger</div>
+    <div class="legend-item" data-severity="low"><div class="legend-circle legend-low"></div> Low Risk</div>
+  </div>
+
+  <button class="info-button" id="info-btn" aria-label="Show Information">
+    <i class="fa-solid fa-info"></i>
+  </button>
+  
+  <a id="donate-float-btn" href="https://www.paypal.com/donate/?hosted_button_id=XXS7D6VJDM2YE" target="_blank"><i class="fa-solid fa-heart"></i>Donate</a>
+
+  <aside id="details-panel">
+      <div class="panel-header">
+          <h2 id="panel-site-name"></h2>
+          <p id="panel-river-name"></p>
+          <button class="panel-close-btn" id="panel-close-btn" aria-label="Close details"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="panel-content">
+          <section class="content-section">
+              <h3><i class="fa-solid fa-circle-info"></i> Current Status</h3>
+              <div class="info-grid">
+                  <div class="info-item" id="severity-card">
+                      <div class="label"><i class="fa-solid fa-triangle-exclamation"></i> Latest Severity</div>
+                      <div class="value" id="panel-severity"></div>
+                  </div>
+                  <div class="info-item">
+                      <div class="label"><i class="fa-solid fa-hashtag"></i> Gauge ID</div>
+                      <div class="value" id="panel-gauge-id"></div>
+                  </div>
+                  <div class="info-item">
+                      <div class="label"><i class="fa-solid fa-map-location-dot"></i> Coordinates</div>
+                      <div class="value" id="panel-coords"></div>
+                  </div>
+                  <div class="info-item">
+                      <div class="label"><i class="fa-solid fa-database"></i> Data Source</div>
+                      <div class="value" id="panel-source"></div>
+                  </div>
+              </div>
+          </section>
+          
+          <section class="content-section">
+              <h3><i class="fa-solid fa-chart-line"></i> Historical Forecasts (30 Days)</h3>
+              <div class="chart-container">
+                <canvas id="historical-chart"></canvas>
+              </div>
+          </section>
+          
+          <section class="content-section">
+              <h3><i class="fa-solid fa-robot"></i> 7-Day AI Prediction</h3>
+              <div class="chart-container">
+                <canvas id="prediction-chart"></canvas>
+              </div>
+          </section>
+      </div>
+  </aside>
+  
+  <div id="info-modal" class="modal-overlay">
+      <div class="modal-content">
+          <div class="modal-header">
+              <h2>Lymis Methodology</h2>
+              <button class="panel-close-btn modal-close-btn" aria-label="Close modal"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+              <p><strong>Lymis (Localized Yield Monitoring & Flood Impact System)</strong> is a dedicated flood forecasting tool of the World Disaster Center. It provides accurate, near-real-time flood intelligence to enable governments, humanitarian organizations, and communities to prepare, respond, and mitigate flood disasters.</p>
+              <h3>1. Data Acquisition</h3>
+              <p>Lymis ingests data from the <strong>Google Flood Forecasting API</strong> as its primary source. The backend Python script automates this process:</p>
+              <ul>
+                  <li><strong>fetch_gauges():</strong> Retrieves metadata for thousands of river gauges across 80+ countries. It filters for quality-verified gauges with valid coordinates.</li>
+                  <li><strong>fetch_forecasts():</strong> Queries the last 30 days of forecast data for all collected gauges, using efficient batching to handle large volumes of requests.</li>
+              </ul>
+              <h3>2. AI-Powered Prediction</h3>
+              <p>To provide forward-looking intelligence, Lymis uses Meta's <strong>Prophet</strong> time-series forecasting model. It decomposes a time series into several components:</p>
+              <ul>
+                  <li><strong>prophet_forecast():</strong> For each gauge, the historical data is fed into a Prophet model. The model learns daily seasonalities and trends from the data.</li>
+                  <li>It then generates a <strong>7-day forward prediction</strong>, estimating the likely water levels. This predictive layer is crucial for early warning systems.</li>
+              </ul>
+              <div class="formula-box">
+                  <div class="formula">$$ y(t) = g(t) + s(t) + h(t) + \epsilon_t $$</div>
+                  <div class="components">
+                      <strong>Where:</strong><br>
+                      <ul>
+                          <li>$g(t)$: The <strong>trend</strong> function, modeling non-periodic changes.</li>
+                          <li>$s(t)$: The <strong>seasonality</strong> function, representing periodic changes (e.g., daily, weekly).</li>
+                          <li>$h(t)$: The <strong>holidays</strong> component, modeling the effects of irregular events.</li>
+                          <li>$\epsilon_t$: The <strong>error term</strong>, representing any idiosyncratic changes.</li>
+                      </ul>
+                  </div>
+              </div>
+              <h3>3. Data Integration & Output</h3>
+              <p>The final step combines all data streams into a single, actionable format.</p>
+              <ul>
+                  <li><strong>merge_and_save():</strong> This function merges the gauge metadata (location, name), historical API forecasts, and the 7-day Prophet predictions into a single JSON object for each gauge.</li>
+                  <li>The resulting <code>flood_full_data.json</code> file powers this entire web application, ensuring all data is comprehensive and ready for visualization. The entire process is scheduled to run automatically every 24 hours.</li>
+              </ul>
+              <h3>Our Mission</h3>
+              <p>This system aligns with the World Disaster Center's core mission: <strong>to make the world free from disasters</strong> by leveraging technology and data for proactive risk reduction and life-saving early action.</p>
+              <p>For more questions, please contact <strong>faith@worlddisastercenter.org</strong>.</p>
+          </div>
+      </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const COLORS = {
+            LOW: '--color-low', MODERATE: '--color-moderate', SEVERE: '--color-severe', EXTREME: '--color-extreme',
+            ACCENT_BLUE: '--accent-blue', ACCENT_PURPLE: '--accent-purple'
+        };
+        let historicalChart = null;
+        let predictionChart = null;
+        
+        const getCssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+        const map = L.map('map', { zoomControl: false }).setView([20, 0], 3);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 18,
+          attribution: '© OpenStreetMap, © CARTO'
+        }).addTo(map);
+        
+        let allGaugeData = [];
+        let gaugeMarkers = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 70 });
+        map.addLayer(gaugeMarkers);
+        let activeFilters = {
+            date: 'all',
+            severity: new Set(['low', 'moderate', 'severe', 'extreme'])
+        };
+
+        const splashScreen = document.getElementById('splash-screen');
+        const detailsPanel = document.getElementById('details-panel');
+        const infoModal = document.getElementById('info-modal');
+        const infoBtn = document.getElementById('info-btn');
+
+        const formatDate = (iso) => iso ? new Date(iso).toISOString().slice(0, 10) : null;
+        
+        const getSeverityAndStyle = (value) => {
+            let style;
+            if (value > 10.0) style = { radius: 11, colorVar: COLORS.EXTREME, name: 'Extreme Danger', id: 'extreme' };
+            else if (value > 5.0) style = { radius: 9, colorVar: COLORS.SEVERE, name: 'Severe Danger', id: 'severe' };
+            else if (value > 2.0) style = { radius: 7, colorVar: COLORS.MODERATE, name: 'Moderate Danger', id: 'moderate' };
+            else style = { radius: 5, colorVar: COLORS.LOW, name: 'Low Risk', id: 'low' };
+            
+            style.color = getCssVar(style.colorVar);
+            return style;
+        };
+
+        function showDetailsPanel(gauge) {
+            const latestForecast = gauge.forecasts?.[0]?.forecastRanges?.[0];
+            const severityStyle = latestForecast ? getSeverityAndStyle(latestForecast.value) : { name: 'N/A', color: getCssVar('--text-secondary') };
+
+            const siteNameEl = document.getElementById('panel-site-name');
+            const riverNameEl = document.getElementById('panel-river-name');
+            siteNameEl.textContent = gauge.siteName || `Gauge ${gauge.gaugeId || 'Details'}`;
+            if (gauge.river) {
+                riverNameEl.textContent = `on the ${gauge.river}`;
+                riverNameEl.style.display = 'block';
+            } else {
+                riverNameEl.style.display = 'none';
+            }
+
+            document.getElementById('panel-gauge-id').textContent = gauge.gaugeId || 'hybas_2121091870';
+            document.getElementById('panel-coords').textContent = `${gauge.lat?.toFixed(4) || '54.4396'}, ${gauge.lon?.toFixed(4) || '17.0229'}`;
+            document.getElementById('panel-source').textContent = gauge.source || 'HYBAS';
+            
+            const panelSeverity = document.getElementById('panel-severity');
+            panelSeverity.textContent = severityStyle.name;
+            panelSeverity.style.color = severityStyle.color;
+
+            document.getElementById('severity-card').style.borderLeftColor = severityStyle.color;
+            
+            renderHistoricalChart(gauge.forecasts);
+            renderPredictionChart(gauge.predicted_next_7days);
+            detailsPanel.classList.add('visible');
+        }
+        
+        const createChart = (canvasId, chartData, colorVarName) => {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const resolvedColor = getCssVar(colorVarName);
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+            gradient.addColorStop(0, resolvedColor + '60'); 
+            gradient.addColorStop(1, resolvedColor + '00');
+
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        data: chartData.data,
+                        borderColor: resolvedColor,
+                        backgroundColor: gradient,
+                        fill: true, tension: 0.4,
+                        pointRadius: 0, pointHoverRadius: 6,
+                        pointBackgroundColor: resolvedColor,
+                        borderWidth: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { color: getCssVar('--text-secondary'), maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false }, border: { color: getCssVar('--border-color')} },
+                        y: { ticks: { color: getCssVar('--text-secondary') }, grid: { color: getCssVar('--border-color'), drawTicks: false }, border: { display: false } }
+                    },
+                    plugins: { 
+                      legend: { display: false },
+                      tooltip: {
+                        enabled: true, mode: 'index', intersect: false,
+                        backgroundColor: getCssVar('--text-primary'), titleFont: { weight: 'bold' },
+                        bodyFont: { size: 14 }, padding: 10, cornerRadius: 6,
+                        displayColors: false
+                      }
+                    }
+                }
+            });
+        };
+
+        function renderHistoricalChart(forecasts) {
+            if (historicalChart) historicalChart.destroy();
+            const allPoints = (forecasts || []).flatMap(f => f.forecastRanges || []).sort((a,b) => new Date(a.forecastEndTime) - new Date(b.forecastEndTime));
+            historicalChart = createChart('historical-chart', {
+                labels: allPoints.map(p => formatDate(p.forecastEndTime)),
+                data: allPoints.map(p => p.value)
+            }, COLORS.ACCENT_BLUE);
+        }
+
+        function renderPredictionChart(predictions) {
+            if (predictionChart) predictionChart.destroy();
+            predictionChart = createChart('prediction-chart', {
+                labels: (predictions || []).map(p => formatDate(p.ds)),
+                data: (predictions || []).map(p => p.yhat)
+            }, COLORS.ACCENT_PURPLE);
+        }
+
+        function renderMap() {
+            gaugeMarkers.clearLayers();
+            const markers = [];
+            const renderedPointsForStats = [];
+            allGaugeData.forEach(gauge => {
+                const { lat, lon } = gauge;
+                if (typeof lat !== 'number' || typeof lon !== 'number') return;
+                let pointToRender = null;
+                if (activeFilters.date === 'all') {
+                    const allPoints = (gauge.forecasts || []).flatMap(f => f.forecastRanges || []);
+                    if (allPoints.length > 0) {
+                        pointToRender = allPoints.reduce((max, p) => p.value > max.value ? p : max, allPoints[0]);
+                    }
+                } else {
+                    const wrapper = (gauge.forecasts || []).find(f => f.forecastRanges?.some(p => formatDate(p.forecastEndTime) === activeFilters.date));
+                    if (wrapper) pointToRender = wrapper.forecastRanges.find(p => formatDate(p.forecastEndTime) === activeFilters.date);
+                }
+                if (pointToRender && typeof pointToRender.value === 'number') {
+                    const style = getSeverityAndStyle(pointToRender.value);
+                    if (activeFilters.severity.has(style.id)) {
+                        const marker = L.circleMarker([lat, lon], {
+                            radius: style.radius, color: '#fff', weight: 1.5,
+                            fillColor: style.color,
+                            fillOpacity: 0.9,
+                            className: style.id === 'extreme' ? 'pulsing-marker' : ''
+                        });
+                        marker.on('click', () => showDetailsPanel(gauge));
+                        markers.push(marker);
+                        renderedPointsForStats.push(pointToRender);
+                    }
+                }
+            });
+            gaugeMarkers.addLayers(markers);
+            updateStatistics(renderedPointsForStats);
+        }
+        
+        const animateValue = (el, start, end, duration) => {
+            if (start === end) return;
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const current = progress * (end - start) + start;
+                el.textContent = end % 1 !== 0 ? current.toFixed(2) : Math.floor(current).toLocaleString();
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+        
+        function updateStatistics(points) {
+            const gaugesEl = document.getElementById('stat-active-gauges');
+            const highestEl = document.getElementById('stat-highest-value');
+            
+            const currentGauges = parseInt(gaugesEl.dataset.value || 0);
+            const newGauges = points.length;
+            animateValue(gaugesEl, currentGauges, newGauges, 800);
+            gaugesEl.dataset.value = newGauges;
+
+            if (points.length > 0) {
+                const currentHighest = parseFloat(highestEl.dataset.value || 0);
+                const newHighest = Math.max(...points.map(p => p.value));
+                animateValue(highestEl, currentHighest, newHighest, 800);
+                highestEl.dataset.value = newHighest;
+                highestEl.style.color = getSeverityAndStyle(newHighest).color;
+            } else {
+                highestEl.textContent = 'N/A';
+                highestEl.style.color = getCssVar('--text-primary');
+                highestEl.dataset.value = 0;
+            }
+        }
+        
+        function initializeFilters() {
+            const select = document.getElementById('date-select');
+            const forecastDates = new Set(allGaugeData.flatMap(g => g.forecasts?.flatMap(f => f.forecastRanges?.map(p => formatDate(p.forecastEndTime)))).filter(Boolean));
+            const sortedDates = Array.from(forecastDates).sort();
+            select.innerHTML = '<option value="all">Show All Dates (Peak Risk)</option>';
+            sortedDates.forEach(dateStr => {
+                select.innerHTML += `<option value="${dateStr}">${dateStr}</option>`;
+            });
+            select.addEventListener('change', e => { activeFilters.date = e.target.value; renderMap(); });
+        }
+
+        function initializeUIEvents() {
+            document.querySelectorAll('.legend-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const severity = item.dataset.severity;
+                    item.classList.toggle('inactive');
+                    activeFilters.severity.has(severity) ? activeFilters.severity.delete(severity) : activeFilters.severity.add(severity);
+                    renderMap();
+                });
+            });
+            document.getElementById('panel-close-btn').addEventListener('click', () => detailsPanel.classList.remove('visible'));
+            infoBtn.addEventListener('click', () => {
+                infoModal.classList.add('visible');
+                if (window.MathJax) window.MathJax.typeset();
+            });
+            
+            infoModal.addEventListener('click', (e) => {
+                if (e.target === infoModal) { 
+                    infoModal.classList.remove('visible');
+                }
+            });
+            document.querySelector('.modal-close-btn').addEventListener('click', () => infoModal.classList.remove('visible'));
+        }
+        
+        async function main() {
+            try {
+                const response = await fetch('flood_full_data.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to load data file.`);
+                allGaugeData = await response.json();
+                
+                initializeFilters();
+                initializeUIEvents();
+                renderMap();
+                
+                setTimeout(() => {
+                    const duration = 2 * 1000;
+                    const end = Date.now() + duration;
+                    (function frame() {
+                        confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: [getCssVar('--accent-blue'), getCssVar('--accent-purple'), getCssVar('--border-color')] });
+                        confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: [getCssVar('--accent-blue'), getCssVar('--accent-purple'), getCssVar('--border-color')] });
+                        if (Date.now() < end) requestAnimationFrame(frame);
+                    }());
+                    setTimeout(() => {
+                      splashScreen.classList.add('hidden');
+                      document.getElementById('map').style.opacity = '1';
+                    }, 500);
+                }, 1000);
+            } catch (err) {
+                splashScreen.innerHTML = `<div class="logo" style="animation: none;">Error</div><p>Could not load Lymis data. Please ensure <code>flood_full_data.json</code> is available and valid.<br><small>${err.message}</small></p>`;
+                console.error('Fatal Error:', err);
+            }
+        }
+        main();
+    });
+  </script>
+</body>
+</html>
